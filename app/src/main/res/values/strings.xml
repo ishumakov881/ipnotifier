@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">ipnotifier</string>
+
+    <string name="notification_channel_name">Мониторинг IP</string>
+    <string name="notification_channel_description">Показывает текущий внешний IP и изменения в фоне</string>
+    <string name="notification_starting">Запуск мониторинга…</string>
+    <string name="notification_title_monitoring">IP Notifier</string>
+    <string name="notification_title_fetching">Получение IP…</string>
+    <string name="notification_title_no_network">Нет сети</string>
+    <string name="notification_title_error">Ошибка получения IP</string>
+    <string name="notification_text_fetching">Запрос к внешнему сервису</string>
+    <string name="notification_text_no_network">Ожидание подключения к интернету</string>
+    <string name="notification_text_current_ip">Текущий IP: %1$s</string>
+    <string name="notification_text_ip_changed">IP изменился: %1$s → %2$s</string>
+    <string name="notification_text_unknown_error">Неизвестная ошибка</string>
+
+    <string name="change_reason_initial">Первичная проверка</string>
+    <string name="change_reason_network_available">Сеть стала доступна</string>
+    <string name="change_reason_network_changed">Изменились параметры сети</string>
+    <string name="change_reason_periodic">Периодическая проверка</string>
+
+    <string name="delivery_error_unknown">Ошибка отправки</string>
+    <string name="delivery_status_idle">Ожидание</string>
+    <string name="delivery_status_pending">Ожидает отправки</string>
+    <string name="delivery_status_sending">Отправка…</string>
+    <string name="delivery_status_delivered">Отправлено</string>
+    <string name="delivery_status_failed">Ошибка отправки</string>
+</resources>
