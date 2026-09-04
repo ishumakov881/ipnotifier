@@ -13,8 +13,9 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.IBinder
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.example.ipnotifier.destination.DestinationDeliverySender
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,7 +67,7 @@ class IpMonitorService : Service() {
         super.onCreate()
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        deliverySender = ToastIpDeliverySender(this)
+        deliverySender = DestinationDeliverySender(this)
         createNotificationChannel()
         registerNetworkCallback()
         IpMonitorRepository.setStatus(IpStatus.Monitoring)
@@ -173,8 +174,8 @@ class IpMonitorService : Service() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notification_channel_name),
@@ -240,10 +241,9 @@ class IpMonitorService : Service() {
         private const val PERIODIC_FETCH_MS = 30 * 60 * 1_000L
         private const val DELIVERY_RETRY_TICK_MS = 30_000L
 
-        @RequiresApi(Build.VERSION_CODES.O)
         fun start(context: Context) {
             val intent = Intent(context, IpMonitorService::class.java)
-            context.startForegroundService(intent)
+            ContextCompat.startForegroundService(context, intent)
         }
 
         fun stop(context: Context) {
