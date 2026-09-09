@@ -2,14 +2,18 @@ package com.example.ipnotifier.log
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DeliveryLogDao {
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(log: DeliveryLogEntity): Long
+
+    @Query("DELETE FROM delivery_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
 
     @Query("SELECT * FROM delivery_logs ORDER BY timestampMillis DESC")
     fun observeAll(): Flow<List<DeliveryLogEntity>>
