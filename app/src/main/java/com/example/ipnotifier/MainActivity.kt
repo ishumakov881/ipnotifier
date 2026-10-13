@@ -44,7 +44,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.platform.LocalContext
+import com.example.ipnotifier.destination.AppDestinations
+import com.example.ipnotifier.destination.Destination
 import com.example.ipnotifier.geo.IpGeoInfo
+import com.example.ipnotifier.ui.StatusStripeCard
+import com.example.ipnotifier.ui.statusColor
 import com.example.ipnotifier.log.DeliveryLogsScreen
 import com.example.ipnotifier.settings.SettingsScreen
 import androidx.compose.runtime.getValue
@@ -133,6 +141,9 @@ fun IpMonitorScreen(
     onStartMonitoring: () -> Unit,
 ) {
     val state by IpMonitorRepository.state.collectAsStateWithLifecycle()
+    val appContext = LocalContext.current.applicationContext
+    val destinations by remember(appContext) { AppDestinations.flow(appContext) }
+        .collectAsStateWithLifecycle(initialValue = null)
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.ipChanged, state.currentIp) {
@@ -178,7 +189,11 @@ fun IpMonitorScreen(
 
             CurrentIpCard(state = state)
             StatusCard(state = state)
-            DeliveryCard(delivery = state.delivery)
+            DeliveryCard(
+                delivery = state.delivery,
+                destinations = destinations,
+                onClick = onOpenSettings,
+            )
 
             state.previousIp?.let { previousIp ->
                 PreviousIpCard(previousIp = previousIp, geo = state.geoByIp[previousIp])
@@ -309,8 +324,15 @@ private fun CurrentIpCard(state: IpMonitorState) {
 }
 
 @Composable
-private fun DeliveryCard(delivery: IpDeliveryState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun DeliveryCard(
+    delivery: IpDeliveryState,
+    destinations: List<Destination>?,
+    onClick: () -> Unit,
+) {
+    StatusStripeCard(
+        active = destinations?.any { it.enabled },
+        onClick = onClick,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -321,10 +343,37 @@ private fun DeliveryCard(delivery: IpDeliveryState) {
                 text = "Отправка (Destinations)",
                 style = MaterialTheme.typography.titleMedium,
             )
-            Text(text = deliveryStatusLabel(delivery.deliveryStatus))
+            destinations?.let { list ->
+                if (list.none { it.enabled }) {
+                    Text(
+                        text = "IP никуда не отправляется: нет активных получателей",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = statusColor(active = false),
+                    )
+                }
+                list.forEach { destination ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(statusColor(destination.enabled), CircleShape),
+                        )
+                        Text(
+                            text = "${destination.displayName}: ${destination.inactiveReason ?: "активно"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+            if (destinations?.any { it.enabled } != false) {
+                Text(text = deliveryStatusLabel(delivery.deliveryStatus))
+            }
             delivery.lastDeliveredIp?.let { ip ->
                 Text(
-                    text = "Последний отправленный: $ip",
+                    text = "Последняя отправка: $ip",
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                 )

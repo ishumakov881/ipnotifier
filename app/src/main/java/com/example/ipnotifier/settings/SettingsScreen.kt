@@ -52,6 +52,10 @@ import com.example.ipnotifier.log.DeliveryLogRepository
 import com.example.ipnotifier.destination.MailDestinationConfig
 import com.example.ipnotifier.destination.MailSecurityMode
 import androidx.compose.material3.CardDefaults
+import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ipnotifier.ui.StatusStripeCard
+import com.example.ipnotifier.ui.statusColor
 import kotlinx.coroutines.launch
 
 private sealed interface TestSendUiState {
@@ -68,6 +72,8 @@ fun SettingsScreen(
     val store = remember { MailSettingsStore(context) }
     val scope = rememberCoroutineScope()
 
+    val savedSettings by store.settingsFlow.collectAsStateWithLifecycle(initialValue = null)
+    val savedDestination = savedSettings?.let { MailDestination("mail_main", it) }
     var settings by remember { mutableStateOf(MailDestinationConfig()) }
     var securityExpanded by remember { mutableStateOf(false) }
     var saveMessage by remember { mutableStateOf<String?>(null) }
@@ -109,7 +115,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            StatusStripeCard(active = savedDestination?.enabled) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -122,7 +128,32 @@ fun SettingsScreen(
                         Text("Включить Mail destination")
                         Switch(
                             checked = settings.enabled,
-                            onCheckedChange = { settings = settings.copy(enabled = it) },
+                            onCheckedChange = { enabled ->
+                                settings = settings.copy(enabled = enabled)
+                                scope.launch {
+                                    store.setEnabled(enabled)
+                                    val destination = MailDestination("mail_main", store.getSettings())
+                                    val name = destination.displayName
+                                    val (message, duration) = when {
+                                        destination.enabled ->
+                                            "Отправка на «$name» включена" to Toast.LENGTH_SHORT
+                                        enabled ->
+                                            "«$name» включён, но письма не уйдут: заполните SMTP и нажмите «Сохранить»" to Toast.LENGTH_LONG
+                                        else ->
+                                            "Отправка на «$name» выключена" to Toast.LENGTH_SHORT
+                                    }
+                                    Toast.makeText(context, message, duration).show()
+                                }
+                            },
+                        )
+                    }
+                    savedDestination?.let { destination ->
+                        Text(
+                            text = destination.inactiveReason
+                                ?.let { "Не отправляется: $it" }
+                                ?: "Активно: новый IP будет отправлен на ${savedSettings?.recipientList()?.joinToString()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = statusColor(destination.enabled),
                         )
                     }
 

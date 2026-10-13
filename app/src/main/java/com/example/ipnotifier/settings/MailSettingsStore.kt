@@ -44,6 +44,10 @@ class MailSettingsStore(
         }
     }
 
+    suspend fun setEnabled(enabled: Boolean) {
+        context.mailSettingsDataStore.edit { prefs -> prefs[Keys.ENABLED] = enabled }
+    }
+
     private object Keys {
         val ENABLED = booleanPreferencesKey("enabled")
         val DISPLAY_NAME = stringPreferencesKey("display_name")

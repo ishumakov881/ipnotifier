@@ -24,6 +24,11 @@ class MailDestination(
     override val displayName: String = config.displayName.ifBlank { "Mail" }
     override val type: DestinationType = DestinationType.Mail
     override val enabled: Boolean = config.enabled && config.isConfiguredForSending()
+    override val inactiveReason: String? = when {
+        !config.enabled -> "выключено"
+        !config.isConfiguredForSending() -> "включено, но не заполнены настройки SMTP"
+        else -> null
+    }
 
     override fun composeMessage(context: DeliveryContext): String = buildString {
         appendLine("Subject: ${buildSubject(context)}")

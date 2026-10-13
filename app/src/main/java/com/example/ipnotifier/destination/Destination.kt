@@ -24,6 +24,9 @@ interface Destination {
     val type: DestinationType
     val enabled: Boolean
 
+    /** Why nothing will be sent to this destination; null when it is active. */
+    val inactiveReason: String?
+
     suspend fun send(context: DeliveryContext): Result<Unit>
 
     fun composeMessage(context: DeliveryContext): String =
