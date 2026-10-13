@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,9 +18,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +35,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -170,22 +176,63 @@ fun IpMonitorScreen(
                 PreviousIpCard(previousIp = state.previousIp!!)
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = onStartMonitoring,
-                ) {
-                    Text("Запустить")
-                }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = onStopMonitoring,
-                ) {
-                    Text("Остановить")
-                }
+            MonitoringToggleButton(
+                isRunning = state.isServiceRunning,
+                onStart = onStartMonitoring,
+                onStop = onStopMonitoring,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonitoringToggleButton(
+    isRunning: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val containerColor by animateColorAsState(
+        targetValue = if (isRunning) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.primary
+        },
+        label = "toggleContainer",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (isRunning) {
+            MaterialTheme.colorScheme.onErrorContainer
+        } else {
+            MaterialTheme.colorScheme.onPrimary
+        },
+        label = "toggleContent",
+    )
+
+    Button(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        onClick = if (isRunning) onStop else onStart,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+        ),
+    ) {
+        AnimatedContent(
+            targetState = isRunning,
+            label = "toggleLabel",
+        ) { running ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (running) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize),
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(
+                    text = if (running) "Остановить мониторинг" else "Запустить мониторинг",
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
         }
     }
@@ -332,7 +379,7 @@ private fun PreviousIpCard(previousIp: String) {
 }
 
 private fun deliveryStatusLabel(status: DeliveryStatus): String = when (status) {
-    DeliveryStatus.Idle -> "Ожидание"
+    DeliveryStatus.Idle -> "Нечего отправлять"
     DeliveryStatus.Pending -> "Ожидает отправки"
     DeliveryStatus.Sending -> "Отправка…"
     DeliveryStatus.Delivered -> "Отправлено"
@@ -340,7 +387,7 @@ private fun deliveryStatusLabel(status: DeliveryStatus): String = when (status) 
 }
 
 private fun statusLabel(status: IpStatus): String = when (status) {
-    IpStatus.Idle -> "Ожидание"
+    IpStatus.Idle -> "Мониторинг остановлен"
     IpStatus.Fetching -> "Получение IP..."
     IpStatus.Monitoring -> "Мониторинг активен"
     IpStatus.NoNetwork -> "Нет сети"

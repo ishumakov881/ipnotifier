@@ -16,6 +16,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.ipnotifier.destination.DestinationDeliverySender
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -70,7 +71,7 @@ class IpMonitorService : Service() {
         deliverySender = DestinationDeliverySender(this)
         createNotificationChannel()
         registerNetworkCallback()
-        IpMonitorRepository.setStatus(IpStatus.Monitoring)
+        IpMonitorRepository.setServiceRunning(true)
         startPeriodicFetch()
         startDeliveryRetry()
     }
@@ -86,6 +87,7 @@ class IpMonitorService : Service() {
         deliveryRetryJob?.cancel()
         serviceScope.cancel()
         runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
+        IpMonitorRepository.setServiceRunning(false)
         super.onDestroy()
     }
 
@@ -163,6 +165,8 @@ class IpMonitorService : Service() {
                         text = notificationText,
                     )
                     attemptDelivery()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     IpMonitorRepository.setStatus(IpStatus.Error, e.message)
                     updateNotification(

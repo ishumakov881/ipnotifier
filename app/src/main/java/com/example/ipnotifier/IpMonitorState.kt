@@ -32,6 +32,7 @@ data class IpMonitorState(
     val currentIp: String? = null,
     val previousIp: String? = null,
     val status: IpStatus = IpStatus.Idle,
+    val isServiceRunning: Boolean = false,
     val lastUpdatedMillis: Long? = null,
     val ipChanged: Boolean = false,
     val changeReason: String? = null,

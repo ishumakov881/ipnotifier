@@ -14,6 +14,16 @@ object IpMonitorRepository {
         _state.update { it.copy(status = status, errorMessage = errorMessage) }
     }
 
+    fun setServiceRunning(running: Boolean) {
+        _state.update { current ->
+            if (running) {
+                current.copy(isServiceRunning = true, status = IpStatus.Monitoring, errorMessage = null)
+            } else {
+                current.copy(isServiceRunning = false, status = IpStatus.Idle)
+            }
+        }
+    }
+
     fun setNoNetwork() {
         _state.update { current ->
             current.copy(
