@@ -1,5 +1,7 @@
 package com.example.ipnotifier
 
+import com.example.ipnotifier.geo.IpGeoInfo
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,6 +59,13 @@ object IpMonitorRepository {
                 errorMessage = null,
                 delivery = delivery,
             )
+        }
+    }
+
+    fun setGeo(ip: String, geo: IpGeoInfo) {
+        _state.update { current ->
+            val relevantIps = setOfNotNull(current.currentIp, current.previousIp, ip)
+            current.copy(geoByIp = (current.geoByIp + (ip to geo)).filterKeys { it in relevantIps })
         }
     }
 

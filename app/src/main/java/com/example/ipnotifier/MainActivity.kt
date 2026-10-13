@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,17 +44,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
+import com.example.ipnotifier.geo.IpGeoInfo
 import com.example.ipnotifier.log.DeliveryLogsScreen
 import com.example.ipnotifier.settings.SettingsScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ipnotifier.ui.theme.IpnotifierTheme
@@ -74,7 +79,10 @@ class MainActivity : ComponentActivity() {
         startMonitoringService()
         setContent {
             IpnotifierTheme {
-                var currentScreen by remember { mutableStateOf(AppScreen.Main) }
+                var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Main) }
+                BackHandler(enabled = currentScreen != AppScreen.Main) {
+                    currentScreen = AppScreen.Main
+                }
                 when (currentScreen) {
                     AppScreen.Main -> IpMonitorScreen(
                         onOpenSettings = { currentScreen = AppScreen.Settings },
@@ -172,8 +180,8 @@ fun IpMonitorScreen(
             StatusCard(state = state)
             DeliveryCard(delivery = state.delivery)
 
-            if (state.previousIp != null) {
-                PreviousIpCard(previousIp = state.previousIp!!)
+            state.previousIp?.let { previousIp ->
+                PreviousIpCard(previousIp = previousIp, geo = state.geoByIp[previousIp])
             }
 
             MonitoringToggleButton(
@@ -263,12 +271,32 @@ private fun CurrentIpCard(state: IpMonitorState) {
                 text = "Текущий внешний IP",
                 style = MaterialTheme.typography.titleMedium,
             )
-            Text(
-                text = state.currentIp ?: "—",
-                style = MaterialTheme.typography.displaySmall,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-            )
+            val geo = state.currentIp?.let { state.geoByIp[it] }
+            val ipStyle = MaterialTheme.typography.displaySmall
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (geo != null) {
+                    Text(text = geo.flagEmoji, style = ipStyle)
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = state.currentIp ?: "—",
+                        style = ipStyle,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = 18.sp,
+                            maxFontSize = ipStyle.fontSize,
+                        ),
+                    )
+                    if (geo != null) {
+                        GeoDetails(geo = geo)
+                    }
+                }
+            }
             if (state.changeReason != null) {
                 Text(
                     text = "Причина проверки: ${state.changeReason}",
@@ -352,7 +380,7 @@ private fun StatusCard(state: IpMonitorState) {
 }
 
 @Composable
-private fun PreviousIpCard(previousIp: String) {
+private fun PreviousIpCard(previousIp: String, geo: IpGeoInfo?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -369,13 +397,38 @@ private fun PreviousIpCard(previousIp: String) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = previousIp,
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = FontFamily.Monospace,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (geo != null) {
+                    Text(text = geo.flagEmoji, style = MaterialTheme.typography.titleLarge)
+                }
+                Column {
+                    Text(
+                        text = previousIp,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    if (geo != null) {
+                        GeoDetails(geo = geo)
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun GeoDetails(geo: IpGeoInfo) {
+    geo.isp?.let { isp ->
+        Text(
+            text = isp,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+    Text(
+        text = listOfNotNull(geo.countryName, geo.asn).joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 private fun deliveryStatusLabel(status: DeliveryStatus): String = when (status) {

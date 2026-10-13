@@ -1,5 +1,7 @@
 package com.example.ipnotifier
 
+import com.example.ipnotifier.geo.IpGeoInfo
+
 enum class IpStatus {
     Idle,
     Fetching,
@@ -38,4 +40,5 @@ data class IpMonitorState(
     val changeReason: String? = null,
     val errorMessage: String? = null,
     val delivery: IpDeliveryState = IpDeliveryState(),
+    val geoByIp: Map<String, IpGeoInfo> = emptyMap(),
 )

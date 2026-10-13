@@ -16,6 +16,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.ipnotifier.destination.DestinationDeliverySender
+import com.example.ipnotifier.geo.IpGeoLocator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,9 @@ class IpMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val fetchMutex = Mutex()
     private val deliveryMutex = Mutex()
+    private val geoMutex = Mutex()
+    private var lastGeoFailureIp: String? = null
+    private var lastGeoFailureAt = 0L
     private var periodicFetchJob: Job? = null
     private var deliveryRetryJob: Job? = null
     private var lastFetchAt = 0L
@@ -154,6 +158,7 @@ class IpMonitorService : Service() {
                 try {
                     val ip = IpFetcher.fetchPublicIp()
                     IpMonitorRepository.applyIpResult(ip, reason)
+                    resolveGeo(ip)
                     val state = IpMonitorRepository.state.value
                     val notificationText = if (state.ipChanged && state.previousIp != null) {
                         getString(R.string.notification_text_ip_changed, state.previousIp, ip)
@@ -173,6 +178,25 @@ class IpMonitorService : Service() {
                         title = getString(R.string.notification_title_error),
                         text = e.message ?: getString(R.string.notification_text_unknown_error),
                     )
+                }
+            }
+        }
+    }
+
+    private fun resolveGeo(ip: String) {
+        serviceScope.launch {
+            geoMutex.withLock {
+                if (IpMonitorRepository.state.value.geoByIp.containsKey(ip)) return@withLock
+                val now = System.currentTimeMillis()
+                if (lastGeoFailureIp == ip && now - lastGeoFailureAt < GEO_RETRY_MS) return@withLock
+
+                val geo = IpGeoLocator.lookup(ip)
+                if (geo != null) {
+                    IpMonitorRepository.setGeo(ip, geo)
+                    lastGeoFailureIp = null
+                } else {
+                    lastGeoFailureIp = ip
+                    lastGeoFailureAt = now
                 }
             }
         }
@@ -244,6 +268,7 @@ class IpMonitorService : Service() {
         private const val MIN_FETCH_INTERVAL_MS = 5_000L
         private const val PERIODIC_FETCH_MS = 30 * 60 * 1_000L
         private const val DELIVERY_RETRY_TICK_MS = 30_000L
+        private const val GEO_RETRY_MS = 10 * 60 * 1_000L
 
         fun start(context: Context) {
             val intent = Intent(context, IpMonitorService::class.java)
