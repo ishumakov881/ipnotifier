@@ -70,6 +70,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ipnotifier.ui.theme.IpnotifierTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -377,6 +378,13 @@ private fun DeliveryCard(
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                 )
+                delivery.lastDeliveredMillis?.let { millis ->
+                    Text(
+                        text = formatRelativeTimestamp(millis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (IpDeliveryCoordinator.needsDelivery(delivery)) {
                 Text(
@@ -494,6 +502,21 @@ private fun statusLabel(status: IpStatus): String = when (status) {
     IpStatus.Monitoring -> "Мониторинг активен"
     IpStatus.NoNetwork -> "Нет сети"
     IpStatus.Error -> "Ошибка"
+}
+
+private fun formatRelativeTimestamp(millis: Long): String {
+    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
+    val day = Calendar.getInstance().apply { timeInMillis = millis }
+    val today = Calendar.getInstance()
+    val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    fun Calendar.sameDayAs(other: Calendar) =
+        get(Calendar.YEAR) == other.get(Calendar.YEAR) &&
+            get(Calendar.DAY_OF_YEAR) == other.get(Calendar.DAY_OF_YEAR)
+    return when {
+        day.sameDayAs(today) -> "сегодня в $time"
+        day.sameDayAs(yesterday) -> "вчера в $time"
+        else -> SimpleDateFormat("dd.MM.yyyy в HH:mm", Locale.getDefault()).format(Date(millis))
+    }
 }
 
 private fun formatTimestamp(millis: Long): String {

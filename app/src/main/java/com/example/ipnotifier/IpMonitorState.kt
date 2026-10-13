@@ -21,6 +21,7 @@ enum class DeliveryStatus {
 data class IpDeliveryState(
     val lastSeenIp: String? = null,
     val lastDeliveredIp: String? = null,
+    val lastDeliveredMillis: Long? = null,
     val observationGeneration: Long = 0,
     val lastDeliveredGeneration: Long = 0,
     val isDelivering: Boolean = false,

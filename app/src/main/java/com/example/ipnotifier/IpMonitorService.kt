@@ -250,7 +250,7 @@ class IpMonitorService : Service() {
 
                 val result = deliverySender.send(ip, delivery.lastDeliveredIp)
                 delivery = if (result.isSuccess) {
-                    IpDeliveryCoordinator.markDelivered(delivery, ip)
+                    IpDeliveryCoordinator.markDelivered(delivery, ip, System.currentTimeMillis())
                 } else {
                     IpDeliveryCoordinator.markFailed(
                         delivery,

@@ -47,9 +47,10 @@ object IpDeliveryCoordinator {
             deliveryStatus = DeliveryStatus.Sending,
         )
 
-    fun markDelivered(state: IpDeliveryState, ip: String): IpDeliveryState =
+    fun markDelivered(state: IpDeliveryState, ip: String, nowMillis: Long): IpDeliveryState =
         state.copy(
             lastDeliveredIp = ip,
+            lastDeliveredMillis = nowMillis,
             lastDeliveredGeneration = state.observationGeneration,
             isDelivering = false,
             consecutiveFailures = 0,
