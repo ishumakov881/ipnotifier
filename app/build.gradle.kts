@@ -1,7 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+val keystorePropertiesFile = file("keystore/keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasAppKeystore = keystorePropertiesFile.exists()
+if (!hasAppKeystore) {
+    logger.warn("${keystorePropertiesFile.path} not found: debug uses the default debug key, release is unsigned")
 }
 
 android {
@@ -20,8 +33,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasAppKeystore) {
+            create("app") {
+                storeFile = file(keystoreProperties.getProperty("storeFile", "keystore/keystore.jks"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (hasAppKeystore) {
+                signingConfig = signingConfigs.getByName("app")
+            }
+        }
         release {
+            if (hasAppKeystore) {
+                signingConfig = signingConfigs.getByName("app")
+            }
             optimization {
                 enable = false
             }
