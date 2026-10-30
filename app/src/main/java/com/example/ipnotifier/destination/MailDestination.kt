@@ -137,23 +137,30 @@ class MailDestination(
     }
 
     private fun buildSubject(context: DeliveryContext): String {
+        val current = context.formatIp()
         val previous = context.previousDeliveredIp
-        return if (previous != null && previous != context.ip) {
-            "IP Notifier: $previous → ${context.ip}"
-        } else {
-            "IP Notifier: ${context.ip}"
-        }
+            ?.takeIf { it != context.ip }
+            ?.let { context.formatIp(it, context.previousGeo) }
+        val ipPart = if (previous != null) "$previous → $current" else current
+        return "${context.deviceName} · $ipPart"
     }
 
     private fun buildBody(context: DeliveryContext): String = buildString {
         appendLine("External IP update")
         appendLine()
-        appendLine("Current IP: ${context.ip}")
-        context.previousDeliveredIp?.let { previous ->
-            if (previous != context.ip) {
-                appendLine("Previous delivered IP: $previous")
-            }
+        appendLine("Device: ${context.deviceName}")
+        appendLine("Current IP: ${context.formatIp()}")
+        context.currentGeo?.let { geo ->
+            appendLine(
+                listOfNotNull(geo.isp, geo.countryName, geo.asn)
+                    .joinToString(" · "),
+            )
         }
+        context.previousDeliveredIp
+            ?.takeIf { it != context.ip }
+            ?.let { previous ->
+                appendLine("Previous delivered IP: ${context.formatIp(previous, context.previousGeo)}")
+            }
         appendLine()
         appendLine("Sent by IP Notifier")
     }

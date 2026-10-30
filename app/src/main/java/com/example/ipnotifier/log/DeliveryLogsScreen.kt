@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.SearchOff
@@ -68,13 +69,29 @@ fun DeliveryLogsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var undoJob by remember { mutableStateOf<Job?>(null) }
     var query by remember { mutableStateOf("") }
+    val allLogs by dao.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     val logs by dao.observeSearch(query.trim()).collectAsStateWithLifecycle(initialValue = emptyList())
+    val totalCount = allLogs.size
+    val subtitle = when {
+        totalCount == 0 -> "Пока пусто"
+        query.isBlank() -> "Всего $totalCount"
+        else -> "Найдено ${logs.size} из $totalCount"
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Логи доставки") },
+                title = {
+                    Column {
+                        Text("Логи доставки")
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -98,6 +115,13 @@ fun DeliveryLogsScreen(
                 singleLine = true,
                 label = { Text("Поиск") },
                 placeholder = { Text("destination, текст письма, ответ…") },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Очистить")
+                        }
+                    }
+                },
             )
 
             when {

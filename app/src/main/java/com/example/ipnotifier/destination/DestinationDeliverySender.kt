@@ -1,7 +1,11 @@
 package com.example.ipnotifier.destination
 
 import android.content.Context
+import com.example.ipnotifier.DeviceInfo
 import com.example.ipnotifier.IpDeliverySender
+import com.example.ipnotifier.IpMonitorRepository
+import com.example.ipnotifier.geo.IpGeoInfo
+import com.example.ipnotifier.geo.IpGeoLocator
 import com.example.ipnotifier.log.DeliveryLogRepository
 
 class DestinationDeliverySender(
@@ -12,6 +16,9 @@ class DestinationDeliverySender(
         val deliveryContext = DeliveryContext(
             ip = ip,
             previousDeliveredIp = previousDeliveredIp,
+            deviceName = DeviceInfo.name(context),
+            currentGeo = resolveGeo(ip),
+            previousGeo = previousDeliveredIp?.let { resolveGeo(it) },
         )
         val destinations = AppDestinations.load(context.applicationContext)
             .filter { it.enabled }
@@ -43,5 +50,10 @@ class DestinationDeliverySender(
             val message = failures.joinToString("; ") { "${it.destinationName}: ${it.errorMessage}" }
             Result.failure(IllegalStateException(message))
         }
+    }
+
+    private suspend fun resolveGeo(ip: String): IpGeoInfo? {
+        IpMonitorRepository.state.value.geoByIp[ip]?.let { return it }
+        return IpGeoLocator.lookup(ip)?.also { IpMonitorRepository.setGeo(ip, it) }
     }
 }

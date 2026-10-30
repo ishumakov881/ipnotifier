@@ -1,5 +1,7 @@
 package com.example.ipnotifier.destination
 
+import com.example.ipnotifier.geo.IpGeoInfo
+
 enum class DestinationType {
     Mail,
     // Telegram,
@@ -9,7 +11,18 @@ enum class DestinationType {
 data class DeliveryContext(
     val ip: String,
     val previousDeliveredIp: String?,
-)
+    val deviceName: String,
+    val currentGeo: IpGeoInfo? = null,
+    val previousGeo: IpGeoInfo? = null,
+) {
+    fun formatIp(ip: String = this.ip, geo: IpGeoInfo? = currentGeo): String =
+        geo?.let { "${it.flagEmoji} $ip" } ?: ip
+
+    fun formatPreviousIp(): String? {
+        val previous = previousDeliveredIp ?: return null
+        return formatIp(previous, previousGeo)
+    }
+}
 
 data class DestinationSendResult(
     val destinationId: String,
@@ -31,7 +44,8 @@ interface Destination {
 
     fun composeMessage(context: DeliveryContext): String =
         buildString {
-            appendLine("IP: ${context.ip}")
-            context.previousDeliveredIp?.let { appendLine("Previous: $it") }
+            appendLine("Device: ${context.deviceName}")
+            appendLine("IP: ${context.formatIp()}")
+            context.formatPreviousIp()?.let { appendLine("Previous: $it") }
         }.trim()
 }

@@ -45,6 +45,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.ipnotifier.DeviceInfo
 import com.example.ipnotifier.destination.DeliveryContext
 import com.example.ipnotifier.destination.MailDestination
 import com.example.ipnotifier.destination.MailErrors
@@ -60,7 +61,7 @@ import kotlinx.coroutines.launch
 
 private sealed interface TestSendUiState {
     data class Running(val step: String) : TestSendUiState
-    data class Success(val recipients: String) : TestSendUiState
+    data class Success(val recipients: String, val subject: String) : TestSendUiState
     data class Error(val message: String) : TestSendUiState
 }
 @OptIn(ExperimentalMaterial3Api::class)
@@ -251,7 +252,7 @@ fun SettingsScreen(
                         label = "Логин",
                         value = settings.username,
                         onValueChange = { settings = settings.copy(username = it) },
-                        placeholder = "jakez007@yandex.ru",
+                        placeholder = "<username>@yandex.ru",
                         keyboardType = KeyboardType.Email,
                     )
                     PasswordSettingsTextField(
@@ -263,14 +264,14 @@ fun SettingsScreen(
                         label = "От (From)",
                         value = settings.fromAddress,
                         onValueChange = { settings = settings.copy(fromAddress = it) },
-                        placeholder = "jakez007@yandex.ru",
+                        placeholder = "<username>@yandex.ru",
                         keyboardType = KeyboardType.Email,
                     )
                     SettingsTextField(
                         label = "Кому (To)",
                         value = settings.toAddresses,
                         onValueChange = { settings = settings.copy(toAddresses = it) },
-                        placeholder = "admin@example.com, ops@example.com",
+                        placeholder = "<username>@yandex.ru",
                     )
                 }
             }
@@ -321,6 +322,7 @@ fun SettingsScreen(
                                 val deliveryContext = DeliveryContext(
                                     ip = "203.0.113.42",
                                     previousDeliveredIp = "198.51.100.10",
+                                    deviceName = DeviceInfo.name(context),
                                 )
                                 val result = destination.send(deliveryContext)
                                 DeliveryLogRepository.logSend(
@@ -333,6 +335,11 @@ fun SettingsScreen(
                                 testState = if (result.isSuccess) {
                                     TestSendUiState.Success(
                                         recipients = settings.recipientList().joinToString(),
+                                        subject = destination.composeMessage(deliveryContext)
+                                            .lineSequence()
+                                            .firstOrNull { it.startsWith("Subject: ") }
+                                            ?.removePrefix("Subject: ")
+                                            ?: deliveryContext.deviceName,
                                     )
                                 } else {
                                     TestSendUiState.Error(
@@ -409,7 +416,7 @@ private fun TestSendStatusCard(state: TestSendUiState?) {
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                     Text(
-                        text = "Тема: IP Notifier: 198.51.100.10 → 203.0.113.42",
+                        text = "Тема: ${state.subject}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
