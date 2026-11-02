@@ -4,8 +4,8 @@ import com.example.ipnotifier.geo.IpGeoInfo
 
 enum class DestinationType {
     Mail,
-    // Telegram,
-    // FirebaseMessaging,
+    Telegram,
+    FirebaseMessaging,
 }
 
 data class DeliveryContext(

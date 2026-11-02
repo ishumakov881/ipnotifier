@@ -13,21 +13,41 @@ object IpMonitorRepository {
     val state: StateFlow<IpMonitorState> = _state.asStateFlow()
 
     fun setStatus(status: IpStatus, errorMessage: String? = null) {
-        _state.update { it.copy(status = status, errorMessage = errorMessage) }
+        _state.update { current ->
+            current.copy(
+                status = status,
+                errorMessage = errorMessage,
+                noNetworkSinceMillis = if (status == IpStatus.NoNetwork) {
+                    current.noNetworkSinceMillis ?: System.currentTimeMillis()
+                } else {
+                    null
+                },
+            )
+        }
     }
 
     fun setServiceRunning(running: Boolean) {
         _state.update { current ->
             if (running) {
-                current.copy(isServiceRunning = true, status = IpStatus.Monitoring, errorMessage = null)
+                current.copy(
+                    isServiceRunning = true,
+                    status = IpStatus.Monitoring,
+                    errorMessage = null,
+                    noNetworkSinceMillis = null,
+                )
             } else {
-                current.copy(isServiceRunning = false, status = IpStatus.Idle)
+                current.copy(
+                    isServiceRunning = false,
+                    status = IpStatus.Idle,
+                    noNetworkSinceMillis = null,
+                )
             }
         }
     }
 
     fun setNoNetwork() {
         _state.update { current ->
+            val now = System.currentTimeMillis()
             current.copy(
                 previousIp = current.currentIp ?: current.previousIp,
                 currentIp = null,
@@ -35,6 +55,7 @@ object IpMonitorRepository {
                 ipChanged = false,
                 changeReason = null,
                 errorMessage = null,
+                noNetworkSinceMillis = current.noNetworkSinceMillis ?: now,
             )
         }
     }
@@ -57,6 +78,7 @@ object IpMonitorRepository {
                 ipChanged = changed,
                 changeReason = if (changed) reason else current.changeReason,
                 errorMessage = null,
+                noNetworkSinceMillis = null,
                 delivery = delivery,
             )
         }

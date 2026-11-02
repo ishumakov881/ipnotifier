@@ -249,12 +249,14 @@ class IpMonitorService : Service() {
                 IpMonitorRepository.updateDelivery(delivery)
 
                 val result = deliverySender.send(ip, delivery.lastDeliveredIp)
+                val finishedAt = System.currentTimeMillis()
                 delivery = if (result.isSuccess) {
-                    IpDeliveryCoordinator.markDelivered(delivery, ip, System.currentTimeMillis())
+                    IpDeliveryCoordinator.markDelivered(delivery, ip, finishedAt)
                 } else {
                     IpDeliveryCoordinator.markFailed(
                         delivery,
                         result.exceptionOrNull()?.message ?: getString(R.string.delivery_error_unknown),
+                        finishedAt,
                     )
                 }
                 IpMonitorRepository.updateDelivery(delivery)

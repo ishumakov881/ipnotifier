@@ -27,6 +27,8 @@ data class IpDeliveryState(
     val isDelivering: Boolean = false,
     val lastDeliveryAttemptMillis: Long? = null,
     val consecutiveFailures: Int = 0,
+    /** Start of the current consecutive-failure streak; null when healthy. */
+    val failureSinceMillis: Long? = null,
     val lastDeliveryError: String? = null,
     val deliveryStatus: DeliveryStatus = DeliveryStatus.Idle,
 )
@@ -40,6 +42,8 @@ data class IpMonitorState(
     val ipChanged: Boolean = false,
     val changeReason: String? = null,
     val errorMessage: String? = null,
+    /** When status became NoNetwork; null otherwise. */
+    val noNetworkSinceMillis: Long? = null,
     val delivery: IpDeliveryState = IpDeliveryState(),
     val geoByIp: Map<String, IpGeoInfo> = emptyMap(),
 )

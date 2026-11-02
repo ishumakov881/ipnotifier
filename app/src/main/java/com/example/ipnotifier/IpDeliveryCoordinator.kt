@@ -54,14 +54,16 @@ object IpDeliveryCoordinator {
             lastDeliveredGeneration = state.observationGeneration,
             isDelivering = false,
             consecutiveFailures = 0,
+            failureSinceMillis = null,
             lastDeliveryError = null,
             deliveryStatus = DeliveryStatus.Delivered,
         )
 
-    fun markFailed(state: IpDeliveryState, error: String): IpDeliveryState =
+    fun markFailed(state: IpDeliveryState, error: String, nowMillis: Long): IpDeliveryState =
         state.copy(
             isDelivering = false,
             consecutiveFailures = state.consecutiveFailures + 1,
+            failureSinceMillis = state.failureSinceMillis ?: nowMillis,
             lastDeliveryError = error,
             deliveryStatus = DeliveryStatus.Failed,
         )

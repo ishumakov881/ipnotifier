@@ -1,31 +1,43 @@
 package com.example.ipnotifier.settings
 
+import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,27 +47,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.ipnotifier.DeviceInfo
-import com.example.ipnotifier.destination.DeliveryContext
-import com.example.ipnotifier.destination.MailDestination
-import com.example.ipnotifier.destination.MailErrors
-import com.example.ipnotifier.log.DeliveryLogRepository
-import com.example.ipnotifier.destination.MailDestinationConfig
-import com.example.ipnotifier.destination.MailSecurityMode
-import androidx.compose.material3.CardDefaults
-import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ipnotifier.DeviceInfo
+import com.example.ipnotifier.destination.AppDestinations
+import com.example.ipnotifier.destination.DeliveryContext
+import com.example.ipnotifier.destination.Destination
+import com.example.ipnotifier.destination.DestinationType
+import com.example.ipnotifier.destination.MailDestination
+import com.example.ipnotifier.destination.MailDestinationConfig
+import com.example.ipnotifier.destination.MailErrors
+import com.example.ipnotifier.destination.MailSecurityMode
+import com.example.ipnotifier.log.DeliveryLogRepository
+import com.example.ipnotifier.ui.DestinationAddTile
+import com.example.ipnotifier.ui.DestinationSelectorTile
 import com.example.ipnotifier.ui.StatusStripeCard
+import com.example.ipnotifier.ui.labelRu
+import com.example.ipnotifier.ui.selectorIcon
 import com.example.ipnotifier.ui.statusColor
 import kotlinx.coroutines.launch
 
@@ -64,26 +74,60 @@ private sealed interface TestSendUiState {
     data class Success(val recipients: String, val subject: String) : TestSendUiState
     data class Error(val message: String) : TestSendUiState
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val store = remember { MailSettingsStore(context) }
+    val appContext = context.applicationContext
     val scope = rememberCoroutineScope()
+    val slotsStore = remember { DestinationSlotsStore(appContext) }
+    val destinations by remember(appContext) { AppDestinations.flow(appContext) }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
 
-    val savedSettings by store.settingsFlow.collectAsStateWithLifecycle(initialValue = null)
-    val savedDestination = savedSettings?.let { MailDestination("mail_main", it) }
-    var settings by remember { mutableStateOf(MailDestinationConfig()) }
-    var securityExpanded by remember { mutableStateOf(false) }
-    var saveMessage by remember { mutableStateOf<String?>(null) }
-    var testState by remember { mutableStateOf<TestSendUiState?>(null) }
-    var isSaving by remember { mutableStateOf(false) }
-    var isTesting by remember { mutableStateOf(false) }
+    LaunchedEffect(destinations) {
+        val ids = destinations.map { it.id }
+        if (selectedId == null || selectedId !in ids) {
+            selectedId = ids.firstOrNull()
+        }
+    }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        settings = store.getSettings()
+    val selected = destinations.firstOrNull { it.id == selectedId }
+    val typesToAdd = remember(destinations) { AppDestinations.availableToAdd(destinations) }
+
+    if (showAddDialog) {
+        AddDestinationDialog(
+            availableTypes = typesToAdd,
+            onDismiss = { showAddDialog = false },
+            onSelect = { type ->
+                showAddDialog = false
+                scope.launch {
+                    when (type) {
+                        DestinationType.Mail -> {
+                            Toast.makeText(
+                                context,
+                                "Mail destination уже есть",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        DestinationType.Telegram,
+                        DestinationType.FirebaseMessaging,
+                        -> {
+                            slotsStore.add(type)
+                            selectedId = when (type) {
+                                DestinationType.Telegram -> "telegram_main"
+                                DestinationType.FirebaseMessaging -> "firebase_main"
+                                DestinationType.Mail -> selectedId
+                            }
+                        }
+                    }
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -107,265 +151,407 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Mail (Main)",
-                style = MaterialTheme.typography.titleLarge,
+                text = "Каналы отправки",
+                style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = "Yandex: smtp.yandex.ru, 465 + SSL. Логин = полный email. Пароль — только «пароль приложения» (id.yandex.ru → Безопасность). Обычный пароль Yandex отклонит с 535.",
+                text = "Выберите destination — статус по цвету полоски и иконки.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            StatusStripeCard(active = savedDestination?.enabled) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Включить Mail destination")
-                        Switch(
-                            checked = settings.enabled,
-                            onCheckedChange = { enabled ->
-                                settings = settings.copy(enabled = enabled)
-                                scope.launch {
-                                    store.setEnabled(enabled)
-                                    val destination = MailDestination("mail_main", store.getSettings())
-                                    val name = destination.displayName
-                                    val (message, duration) = when {
-                                        destination.enabled ->
-                                            "Отправка на «$name» включена" to Toast.LENGTH_SHORT
-                                        enabled ->
-                                            "«$name» включён, но письма не уйдут: заполните SMTP и нажмите «Сохранить»" to Toast.LENGTH_LONG
-                                        else ->
-                                            "Отправка на «$name» выключена" to Toast.LENGTH_SHORT
-                                    }
-                                    Toast.makeText(context, message, duration).show()
-                                }
-                            },
-                        )
-                    }
-                    savedDestination?.let { destination ->
-                        Text(
-                            text = destination.inactiveReason
-                                ?.let { "Не отправляется: $it" }
-                                ?: "Активно: новый IP будет отправлен на ${savedSettings?.recipientList()?.joinToString()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = statusColor(destination.enabled),
-                        )
-                    }
-
-                    SettingsTextField(
-                        label = "Имя destination",
-                        value = settings.displayName,
-                        onValueChange = { settings = settings.copy(displayName = it) },
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                destinations.forEach { destination ->
+                    DestinationSelectorTile(
+                        name = destination.displayName,
+                        type = destination.type,
+                        active = destination.enabled,
+                        selected = destination.id == selectedId,
+                        onClick = { selectedId = destination.id },
                     )
                 }
-            }
-
-            SectionTitle("SMTP (отправка)")
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SettingsTextField(
-                        label = "SMTP сервер",
-                        value = settings.smtpHost,
-                        onValueChange = { settings = settings.copy(smtpHost = it) },
-                        placeholder = "smtp.yandex.ru",
-                    )
-                    SettingsTextField(
-                        label = "SMTP порт",
-                        value = settings.smtpPort.toString(),
-                        onValueChange = { value ->
-                            settings = settings.copy(smtpPort = value.toIntOrNull() ?: settings.smtpPort)
-                        },
-                        keyboardType = KeyboardType.Number,
-                    )
-
-                    ExposedDropdownMenuBox(
-                        expanded = securityExpanded,
-                        onExpandedChange = { securityExpanded = it },
-                    ) {
-                        OutlinedTextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            readOnly = true,
-                            value = securityModeLabel(settings.securityMode),
-                            onValueChange = {},
-                            label = { Text("Безопасность SMTP") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = securityExpanded) },
-                        )
-                        ExposedDropdownMenu(
-                            expanded = securityExpanded,
-                            onDismissRequest = { securityExpanded = false },
-                        ) {
-                            MailSecurityMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = { Text(securityModeLabel(mode)) },
-                                    onClick = {
-                                        settings = settings.copy(securityMode = mode)
-                                        securityExpanded = false
-                                    },
-                                )
-                            }
+                DestinationAddTile(
+                    onClick = {
+                        if (typesToAdd.isEmpty()) {
+                            Toast.makeText(
+                                context,
+                                "Все типы destination уже добавлены",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        } else {
+                            showAddDialog = true
                         }
-                    }
-                }
-            }
-
-            SectionTitle("POP3 (опционально)")
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SettingsTextField(
-                        label = "POP3 сервер",
-                        value = settings.pop3Host,
-                        onValueChange = { settings = settings.copy(pop3Host = it) },
-                        placeholder = "pop.yandex.ru",
-                    )
-                    SettingsTextField(
-                        label = "POP3 порт",
-                        value = settings.pop3Port.toString(),
-                        onValueChange = { value ->
-                            settings = settings.copy(pop3Port = value.toIntOrNull() ?: settings.pop3Port)
-                        },
-                        keyboardType = KeyboardType.Number,
-                    )
-                }
-            }
-
-            SectionTitle("Аутентификация и адреса")
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SettingsTextField(
-                        label = "Логин",
-                        value = settings.username,
-                        onValueChange = { settings = settings.copy(username = it) },
-                        placeholder = "<username>@yandex.ru",
-                        keyboardType = KeyboardType.Email,
-                    )
-                    PasswordSettingsTextField(
-                        label = "Пароль",
-                        value = settings.password,
-                        onValueChange = { settings = settings.copy(password = it) },
-                    )
-                    SettingsTextField(
-                        label = "От (From)",
-                        value = settings.fromAddress,
-                        onValueChange = { settings = settings.copy(fromAddress = it) },
-                        placeholder = "<username>@yandex.ru",
-                        keyboardType = KeyboardType.Email,
-                    )
-                    SettingsTextField(
-                        label = "Кому (To)",
-                        value = settings.toAddresses,
-                        onValueChange = { settings = settings.copy(toAddresses = it) },
-                        placeholder = "<username>@yandex.ru",
-                    )
-                }
-            }
-
-            TestSendStatusCard(state = testState)
-
-            saveMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
+                    },
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = !isSaving && !isTesting,
-                    onClick = {
-                        scope.launch {
-                            isSaving = true
-                            store.save(settings)
-                            saveMessage = "Настройки сохранены"
-                            isSaving = false
-                        }
-                    },
-                ) {
-                    Text(if (isSaving) "Сохранение…" else "Сохранить")
+            selected?.let { destination ->
+                when (destination.type) {
+                    DestinationType.Mail -> MailDestinationForm(
+                        destination = destination,
+                    )
+                    DestinationType.Telegram,
+                    DestinationType.FirebaseMessaging,
+                    -> ComingSoonDestinationForm(destination = destination)
                 }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    enabled = !isTesting && !isSaving && settings.isConfiguredForSending(),
-                    onClick = {
-                        scope.launch {
-                            isTesting = true
-                            try {
-                                testState = TestSendUiState.Running("Сохранение настроек…")
-                                store.save(settings)
+            }
+        }
+    }
+}
 
-                                val smtpInfo =
-                                    "${settings.smtpHost}:${settings.smtpPort} (${securityModeLabel(settings.securityMode)})"
-                                testState = TestSendUiState.Running("Подключение к $smtpInfo (до 20 сек)…")
-
-                                val destination = MailDestination("mail_main", settings.copy(enabled = true))
-                                val deliveryContext = DeliveryContext(
-                                    ip = "203.0.113.42",
-                                    previousDeliveredIp = "198.51.100.10",
-                                    deviceName = DeviceInfo.name(context),
-                                )
-                                val result = destination.send(deliveryContext)
-                                DeliveryLogRepository.logSend(
-                                    context = context.applicationContext,
-                                    destination = destination,
-                                    deliveryContext = deliveryContext,
-                                    result = result,
-                                )
-
-                                testState = if (result.isSuccess) {
-                                    TestSendUiState.Success(
-                                        recipients = settings.recipientList().joinToString(),
-                                        subject = destination.composeMessage(deliveryContext)
-                                            .lineSequence()
-                                            .firstOrNull { it.startsWith("Subject: ") }
-                                            ?.removePrefix("Subject: ")
-                                            ?: deliveryContext.deviceName,
-                                    )
-                                } else {
-                                    TestSendUiState.Error(
-                                        message = MailErrors.format(result.exceptionOrNull()),
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                testState = TestSendUiState.Error(
-                                    message = MailErrors.format(e),
-                                )
-                            } finally {
-                                isTesting = false
-                            }
-                        }
-                    },
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isTesting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
+@Composable
+private fun AddDestinationDialog(
+    availableTypes: List<DestinationType>,
+    onDismiss: () -> Unit,
+    onSelect: (DestinationType) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Добавить destination") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                availableTypes.forEach { type ->
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onSelect(type) },
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = type.selectorIcon(),
+                                contentDescription = null,
                             )
-                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(type.labelRu())
                         }
-                        Text(if (isTesting) "Отправка…" else "Тест")
                     }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ComingSoonDestinationForm(destination: Destination) {
+    StatusStripeCard(active = false) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = destination.displayName,
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = "Канал добавлен, но отправка пока не реализована.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = destination.inactiveReason?.let { "Статус: $it" } ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = statusColor(active = false),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MailDestinationForm(
+    destination: Destination,
+) {
+    val context = LocalContext.current
+    val store = remember { MailSettingsStore(context) }
+    val scope = rememberCoroutineScope()
+
+    val savedSettings by store.settingsFlow.collectAsStateWithLifecycle(initialValue = null)
+    val savedDestination = savedSettings?.let { MailDestination(destination.id, it) }
+    var settings by remember { mutableStateOf(MailDestinationConfig()) }
+    var securityExpanded by remember { mutableStateOf(false) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+    var testState by remember { mutableStateOf<TestSendUiState?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+    var isTesting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(destination.id) {
+        settings = store.getSettings()
+        saveMessage = null
+        testState = null
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(
+            text = "Mail · ${settings.displayName.ifBlank { destination.displayName }}",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            text = "Yandex: smtp.yandex.ru, 465 + SSL. Логин = полный email. Пароль — только «пароль приложения» (id.yandex.ru → Безопасность). Обычный пароль Yandex отклонит с 535.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        StatusStripeCard(active = savedDestination?.enabled) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Включить Mail destination")
+                    Switch(
+                        checked = settings.enabled,
+                        onCheckedChange = { enabled ->
+                            settings = settings.copy(enabled = enabled)
+                            scope.launch {
+                                store.setEnabled(enabled)
+                                val updated = MailDestination(destination.id, store.getSettings())
+                                val name = updated.displayName
+                                val (message, duration) = when {
+                                    updated.enabled ->
+                                        "Отправка на «$name» включена" to Toast.LENGTH_SHORT
+                                    enabled ->
+                                        "«$name» включён, но письма не уйдут: заполните SMTP и нажмите «Сохранить»" to Toast.LENGTH_LONG
+                                    else ->
+                                        "Отправка на «$name» выключена" to Toast.LENGTH_SHORT
+                                }
+                                Toast.makeText(context, message, duration).show()
+                            }
+                        },
+                    )
+                }
+                savedDestination?.let { saved ->
+                    Text(
+                        text = saved.inactiveReason
+                            ?.let { "Не отправляется: $it" }
+                            ?: "Активно: новый IP будет отправлен на ${savedSettings?.recipientList()?.joinToString()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = statusColor(saved.enabled),
+                    )
+                }
+
+                SettingsTextField(
+                    label = "Имя destination",
+                    value = settings.displayName,
+                    onValueChange = { settings = settings.copy(displayName = it) },
+                )
+            }
+        }
+
+        SectionTitle("SMTP (отправка)")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SettingsTextField(
+                    label = "SMTP сервер",
+                    value = settings.smtpHost,
+                    onValueChange = { settings = settings.copy(smtpHost = it) },
+                    placeholder = "smtp.yandex.ru",
+                )
+                SettingsTextField(
+                    label = "SMTP порт",
+                    value = settings.smtpPort.toString(),
+                    onValueChange = { value ->
+                        settings = settings.copy(smtpPort = value.toIntOrNull() ?: settings.smtpPort)
+                    },
+                    keyboardType = KeyboardType.Number,
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = securityExpanded,
+                    onExpandedChange = { securityExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        readOnly = true,
+                        value = securityModeLabel(settings.securityMode),
+                        onValueChange = {},
+                        label = { Text("Безопасность SMTP") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = securityExpanded) },
+                    )
+                    ExposedDropdownMenu(
+                        expanded = securityExpanded,
+                        onDismissRequest = { securityExpanded = false },
+                    ) {
+                        MailSecurityMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(securityModeLabel(mode)) },
+                                onClick = {
+                                    settings = settings.copy(securityMode = mode)
+                                    securityExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SectionTitle("POP3 (опционально)")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SettingsTextField(
+                    label = "POP3 сервер",
+                    value = settings.pop3Host,
+                    onValueChange = { settings = settings.copy(pop3Host = it) },
+                    placeholder = "pop.yandex.ru",
+                )
+                SettingsTextField(
+                    label = "POP3 порт",
+                    value = settings.pop3Port.toString(),
+                    onValueChange = { value ->
+                        settings = settings.copy(pop3Port = value.toIntOrNull() ?: settings.pop3Port)
+                    },
+                    keyboardType = KeyboardType.Number,
+                )
+            }
+        }
+
+        SectionTitle("Аутентификация и адреса")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SettingsTextField(
+                    label = "Логин",
+                    value = settings.username,
+                    onValueChange = { settings = settings.copy(username = it) },
+                    placeholder = "<username>@yandex.ru",
+                    keyboardType = KeyboardType.Email,
+                )
+                PasswordSettingsTextField(
+                    label = "Пароль",
+                    value = settings.password,
+                    onValueChange = { settings = settings.copy(password = it) },
+                )
+                SettingsTextField(
+                    label = "От (From)",
+                    value = settings.fromAddress,
+                    onValueChange = { settings = settings.copy(fromAddress = it) },
+                    placeholder = "<username>@yandex.ru",
+                    keyboardType = KeyboardType.Email,
+                )
+                SettingsTextField(
+                    label = "Кому (To)",
+                    value = settings.toAddresses,
+                    onValueChange = { settings = settings.copy(toAddresses = it) },
+                    placeholder = "<username>@yandex.ru",
+                )
+            }
+        }
+
+        TestSendStatusCard(state = testState)
+
+        saveMessage?.let { message ->
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                enabled = !isSaving && !isTesting,
+                onClick = {
+                    scope.launch {
+                        isSaving = true
+                        store.save(settings)
+                        saveMessage = "Настройки сохранены"
+                        isSaving = false
+                    }
+                },
+            ) {
+                Text(if (isSaving) "Сохранение…" else "Сохранить")
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                enabled = !isTesting && !isSaving && settings.isConfiguredForSending(),
+                onClick = {
+                    scope.launch {
+                        isTesting = true
+                        try {
+                            testState = TestSendUiState.Running("Сохранение настроек…")
+                            store.save(settings)
+
+                            val smtpInfo =
+                                "${settings.smtpHost}:${settings.smtpPort} (${securityModeLabel(settings.securityMode)})"
+                            testState = TestSendUiState.Running("Подключение к $smtpInfo (до 20 сек)…")
+
+                            val mailDestination = MailDestination(destination.id, settings.copy(enabled = true))
+                            val deliveryContext = DeliveryContext(
+                                ip = "203.0.113.42",
+                                previousDeliveredIp = "198.51.100.10",
+                                deviceName = DeviceInfo.name(context),
+                            )
+                            val result = mailDestination.send(deliveryContext)
+                            DeliveryLogRepository.logSend(
+                                context = context.applicationContext,
+                                destination = mailDestination,
+                                deliveryContext = deliveryContext,
+                                result = result,
+                            )
+
+                            testState = if (result.isSuccess) {
+                                TestSendUiState.Success(
+                                    recipients = settings.recipientList().joinToString(),
+                                    subject = mailDestination.composeMessage(deliveryContext)
+                                        .lineSequence()
+                                        .firstOrNull { it.startsWith("Subject: ") }
+                                        ?.removePrefix("Subject: ")
+                                        ?: deliveryContext.deviceName,
+                                )
+                            } else {
+                                TestSendUiState.Error(
+                                    message = MailErrors.format(result.exceptionOrNull()),
+                                )
+                            }
+                        } catch (e: Exception) {
+                            testState = TestSendUiState.Error(
+                                message = MailErrors.format(e),
+                            )
+                        } finally {
+                            isTesting = false
+                        }
+                    }
+                },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isTesting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                    }
+                    Text(if (isTesting) "Отправка…" else "Тест")
                 }
             }
         }
