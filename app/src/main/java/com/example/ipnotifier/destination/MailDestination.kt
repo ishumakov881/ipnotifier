@@ -161,8 +161,37 @@ class MailDestination(
             ?.let { previous ->
                 appendLine("Previous delivered IP: ${context.formatIp(previous, context.previousGeo)}")
             }
+        appendLine("Observed: ${formatMailTimestamp(context.observedAtMillis)}")
+        appendLine("Sent: ${formatMailTimestamp(context.sentAtMillis)}")
+        val delayMs = context.sentAtMillis - context.observedAtMillis
+        if (delayMs >= DELAY_NOTE_MS) {
+            appendLine("Note: delivery was delayed (${formatMailDelay(delayMs)})")
+        }
+        context.quote?.let { quote ->
+            appendLine()
+            appendLine(quote.formatLine())
+            quote.source?.let { appendLine("Quote via $it") }
+        }
         appendLine()
         appendLine("Sent by IP Notifier")
+    }
+
+    private fun formatMailTimestamp(millis: Long): String {
+        val formatter = java.text.SimpleDateFormat(
+            "yyyy-MM-dd HH:mm:ss Z",
+            java.util.Locale.US,
+        )
+        return formatter.format(java.util.Date(millis))
+    }
+
+    private fun formatMailDelay(delayMs: Long): String {
+        val totalMin = delayMs / 60_000L
+        val hours = totalMin / 60L
+        val minutes = totalMin % 60L
+        return when {
+            hours > 0L -> "${hours}h ${minutes}m"
+            else -> "${minutes}m"
+        }
     }
 
     private companion object {
@@ -170,6 +199,7 @@ class MailDestination(
         const val SMTP_PROTOCOL = "smtp"
         const val SMTPS_PROTOCOL = "smtps"
         const val SEND_TIMEOUT_MS = 20_000L
+        const val DELAY_NOTE_MS = 5 * 60_000L
     }
 }
 

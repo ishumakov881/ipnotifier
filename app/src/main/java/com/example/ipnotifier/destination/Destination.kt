@@ -1,6 +1,7 @@
 package com.example.ipnotifier.destination
 
 import com.example.ipnotifier.geo.IpGeoInfo
+import com.example.ipnotifier.quote.Quote
 
 enum class DestinationType {
     Mail,
@@ -14,6 +15,11 @@ data class DeliveryContext(
     val deviceName: String,
     val currentGeo: IpGeoInfo? = null,
     val previousGeo: IpGeoInfo? = null,
+    /** When this IP was first observed as the current public IP. */
+    val observedAtMillis: Long = System.currentTimeMillis(),
+    /** When the delivery attempt started. */
+    val sentAtMillis: Long = System.currentTimeMillis(),
+    val quote: Quote? = null,
 ) {
     fun formatIp(ip: String = this.ip, geo: IpGeoInfo? = currentGeo): String =
         geo?.let { "${it.flagEmoji} $ip" } ?: ip
@@ -47,5 +53,6 @@ interface Destination {
             appendLine("Device: ${context.deviceName}")
             appendLine("IP: ${context.formatIp()}")
             context.formatPreviousIp()?.let { appendLine("Previous: $it") }
+            context.quote?.let { appendLine().appendLine(it.formatLine()) }
         }.trim()
 }

@@ -7,18 +7,28 @@ import com.example.ipnotifier.IpMonitorRepository
 import com.example.ipnotifier.geo.IpGeoInfo
 import com.example.ipnotifier.geo.IpGeoLocator
 import com.example.ipnotifier.log.DeliveryLogRepository
+import com.example.ipnotifier.quote.QuoteFetcher
 
 class DestinationDeliverySender(
     private val context: Context,
 ) : IpDeliverySender {
 
-    override suspend fun send(ip: String, previousDeliveredIp: String?): Result<Unit> {
+    override suspend fun send(
+        ip: String,
+        previousDeliveredIp: String?,
+        observedAtMillis: Long,
+    ): Result<Unit> {
+        val sentAt = System.currentTimeMillis()
+        val quote = QuoteFetcher.fetchRandom()
         val deliveryContext = DeliveryContext(
             ip = ip,
             previousDeliveredIp = previousDeliveredIp,
             deviceName = DeviceInfo.name(context),
             currentGeo = resolveGeo(ip),
             previousGeo = previousDeliveredIp?.let { resolveGeo(it) },
+            observedAtMillis = observedAtMillis,
+            sentAtMillis = sentAt,
+            quote = quote,
         )
         val destinations = AppDestinations.load(context.applicationContext)
             .filter { it.enabled }

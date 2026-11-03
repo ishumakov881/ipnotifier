@@ -26,6 +26,8 @@ data class IpDeliveryState(
     val lastDeliveredGeneration: Long = 0,
     val isDelivering: Boolean = false,
     val lastDeliveryAttemptMillis: Long? = null,
+    /** When [lastSeenIp] last changed; used to require stability before send. */
+    val lastSeenChangedAtMillis: Long? = null,
     val consecutiveFailures: Int = 0,
     /** Start of the current consecutive-failure streak; null when healthy. */
     val failureSinceMillis: Long? = null,

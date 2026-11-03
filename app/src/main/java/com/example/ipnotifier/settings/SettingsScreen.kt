@@ -61,6 +61,7 @@ import com.example.ipnotifier.destination.MailDestinationConfig
 import com.example.ipnotifier.destination.MailErrors
 import com.example.ipnotifier.destination.MailSecurityMode
 import com.example.ipnotifier.log.DeliveryLogRepository
+import com.example.ipnotifier.quote.QuoteFetcher
 import com.example.ipnotifier.ui.DestinationAddTile
 import com.example.ipnotifier.ui.DestinationSelectorTile
 import com.example.ipnotifier.ui.StatusStripeCard
@@ -510,6 +511,7 @@ private fun MailDestinationForm(
                                 ip = "203.0.113.42",
                                 previousDeliveredIp = "198.51.100.10",
                                 deviceName = DeviceInfo.name(context),
+                                quote = QuoteFetcher.fetchRandom(),
                             )
                             val result = mailDestination.send(deliveryContext)
                             DeliveryLogRepository.logSend(

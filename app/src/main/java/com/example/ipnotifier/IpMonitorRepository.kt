@@ -62,19 +62,24 @@ object IpMonitorRepository {
 
     fun applyIpResult(ip: String, reason: String) {
         _state.update { current ->
+            val now = System.currentTimeMillis()
             val changed = current.currentIp != null && current.currentIp != ip
-            val delivery = IpDeliveryCoordinator.onIpObserved(current.delivery, ip).let { observed ->
-                if (IpDeliveryCoordinator.needsDelivery(observed)) {
-                    observed.copy(deliveryStatus = DeliveryStatus.Pending)
-                } else {
-                    observed
+            val delivery = IpDeliveryCoordinator.onIpObserved(current.delivery, ip, now).let { observed ->
+                when {
+                    // Same as last notified after a flap — settle without mailing.
+                    ip == observed.lastDeliveredIp &&
+                        observed.observationGeneration > observed.lastDeliveredGeneration ->
+                        IpDeliveryCoordinator.markDelivered(observed, ip, now)
+                    IpDeliveryCoordinator.needsDelivery(observed) ->
+                        observed.copy(deliveryStatus = DeliveryStatus.Pending)
+                    else -> observed
                 }
             }
             current.copy(
                 previousIp = if (changed) current.currentIp else current.previousIp,
                 currentIp = ip,
                 status = IpStatus.Monitoring,
-                lastUpdatedMillis = System.currentTimeMillis(),
+                lastUpdatedMillis = now,
                 ipChanged = changed,
                 changeReason = if (changed) reason else current.changeReason,
                 errorMessage = null,

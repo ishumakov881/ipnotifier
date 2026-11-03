@@ -393,6 +393,13 @@ private fun DeliveryCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                deliveryPendingHint(delivery)?.let { hint ->
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (delivery.consecutiveFailures > 0) {
                 val since = delivery.failureSinceMillis
@@ -558,17 +565,31 @@ private fun attemptsLabel(count: Int): String {
     return "$count $word"
 }
 
+private fun deliveryPendingHint(delivery: IpDeliveryState): String? {
+    if (delivery.deliveryStatus == DeliveryStatus.Sending) return null
+    val now = System.currentTimeMillis()
+    if (!IpDeliveryCoordinator.isStable(delivery, now)) {
+        val remaining = IpDeliveryCoordinator.stabilityRemainingMs(delivery, now)
+        return "Ждём стабильности IP ещё ${formatDuration(remaining)}"
+    }
+    return null
+}
+
 private fun nextRetryHint(delivery: IpDeliveryState): String? {
     if (delivery.deliveryStatus == DeliveryStatus.Sending) return "Идёт попытка…"
     if (!IpDeliveryCoordinator.needsDelivery(delivery)) return null
-    val lastAttempt = delivery.lastDeliveryAttemptMillis ?: return "Следующая попытка: сейчас"
-    val delay = IpDeliveryCoordinator.retryDelayMs(delivery.consecutiveFailures)
-    val remaining = lastAttempt + delay - System.currentTimeMillis()
-    return if (remaining <= 0L) {
-        "Следующая попытка: сейчас"
-    } else {
-        "Следующая попытка через ${formatDuration(remaining)}"
+    val now = System.currentTimeMillis()
+    if (!IpDeliveryCoordinator.isStable(delivery, now)) {
+        val remaining = IpDeliveryCoordinator.stabilityRemainingMs(delivery, now)
+        return "Повтор после стабильности IP (${formatDuration(remaining)})"
     }
+    if (!IpDeliveryCoordinator.canRetryNow(delivery, now)) {
+        val lastAttempt = delivery.lastDeliveryAttemptMillis ?: return null
+        val delay = IpDeliveryCoordinator.retryDelayMs(delivery.consecutiveFailures)
+        val remaining = lastAttempt + delay - now
+        return "Следующая попытка через ${formatDuration(remaining)}"
+    }
+    return "Следующая попытка: сейчас"
 }
 
 private fun formatRelativeTimestamp(millis: Long): String {

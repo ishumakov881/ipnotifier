@@ -242,13 +242,35 @@ class IpMonitorService : Service() {
 
                 val now = System.currentTimeMillis()
                 var delivery = IpMonitorRepository.deliveryState()
-                if (!IpDeliveryCoordinator.canAttemptNow(delivery, now)) return@withLock
+                if (!IpDeliveryCoordinator.needsDelivery(delivery)) return@withLock
+
+                // Re-fetch so we never mail a stale intermediate IP after a long outage/flap.
+                val freshIp = try {
+                    IpFetcher.fetchPublicIp()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    return@withLock
+                }
+
+                val plan = IpDeliveryCoordinator.planAttempt(delivery, freshIp, now)
+                delivery = plan.state
+                IpMonitorRepository.updateDelivery(delivery)
+
+                if (plan.action != IpDeliveryCoordinator.AttemptAction.Send) {
+                    return@withLock
+                }
 
                 val ip = delivery.lastSeenIp ?: return@withLock
+                val observedAt = delivery.lastSeenChangedAtMillis ?: now
                 delivery = IpDeliveryCoordinator.markDelivering(delivery, now)
                 IpMonitorRepository.updateDelivery(delivery)
 
-                val result = deliverySender.send(ip, delivery.lastDeliveredIp)
+                val result = deliverySender.send(
+                    ip = ip,
+                    previousDeliveredIp = delivery.lastDeliveredIp,
+                    observedAtMillis = observedAt,
+                )
                 val finishedAt = System.currentTimeMillis()
                 delivery = if (result.isSuccess) {
                     IpDeliveryCoordinator.markDelivered(delivery, ip, finishedAt)
